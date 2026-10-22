@@ -23,11 +23,15 @@ async function checkDevice() {
   list.hidden = false;
   list.replaceChildren();
   const failures = [];
-  function result(label, passed, reason) {
+  let hostingFailed = false;
+  function result(label, passed, reason, hosting = false) {
     const item = document.createElement('li');
     item.textContent = `${passed ? 'Pass' : 'Unavailable'} · ${label}`;
     list.append(item);
-    if (!passed) failures.push(reason);
+    if (!passed) {
+      failures.push(reason);
+      if (hosting) hostingFailed = true;
+    }
   }
   let device;
   try {
@@ -47,12 +51,12 @@ async function checkDevice() {
     try {
       const status = await fetch('/api/game-status', { signal: AbortSignal.timeout(15000), cache: 'no-store' });
       const installed = status.ok && (await status.json()).ready;
-      result('Independent game asset copy', installed, 'The complete game asset copy is not ready. Retry later.');
+      result('Independent game asset copy', installed, 'The hosted game files are not fully installed. The site owner needs to complete the storage import.', true);
       const response = await fetch('/b/8b0b5899ed/loader.js', { signal: AbortSignal.timeout(15000) });
       const code = response.ok ? await response.text() : '';
-      result('Game engine delivery', response.ok && code.includes('importScripts'), 'Game asset delivery is unavailable. Try again later or open the browser guide.');
-    } catch { result('Game engine delivery', false, 'Game storage did not respond. Check your connection and try again.'); }
-    summary.textContent = failures.length ? 'This device is not ready to launch.' : 'Basic checks passed. Ready to try.';
+      result('Game engine delivery', response.ok && code.includes('importScripts'), 'Game asset delivery is unavailable. Try again later or open the browser guide.', true);
+    } catch { result('Game engine delivery', false, 'Game storage did not respond. Check your connection and try again.', true); }
+    summary.textContent = hostingFailed ? 'Hosted game files are unavailable.' : failures.length ? 'This device is not ready to launch.' : 'Basic checks passed. Ready to try.';
     feedback.textContent = failures.length ? failures.join(' ') : 'Basic checks do not guarantee world rendering or performance.';
     return failures.length === 0;
   } catch {
